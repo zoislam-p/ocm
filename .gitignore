@@ -25,6 +25,7 @@ munge-csv
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 _output/
+dist/
 .idea/
 *.diff
 
@@ -36,3 +37,6 @@ _output/
 
 # VSCode workspace files
 .vscode/
+
+# Microsoft Word temporary lock files
+~$*.docx

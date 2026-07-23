@@ -1,0 +1,19 @@
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  name: ocm-configmap-delivery
+  namespace: ocm-ubi9-local
+spec:
+  workload:
+    manifests:
+      - apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ocm-functional-target
+      - apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: delivered-by-ocm
+          namespace: ocm-functional-target
+        data:
+          result: "OCM ManifestWork delivery succeeded"
