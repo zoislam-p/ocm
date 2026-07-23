@@ -4,6 +4,19 @@ SHELL := /bin/bash
 # Sovereign Core / SPS wrapper Makefile.
 # Upstream targets remain unchanged in Makefile.org and can be called through
 # the upstream-* targets below.
+#
+# Target origin:
+#   pre-build, docker-build, docker-test, helm-package, and deploy are NEW
+#   wrapper targets added for the Sovereign Core/SPS workflow. They are not
+#   copied from the original upstream Makefile. Each target either validates
+#   or invokes existing upstream Dockerfiles/Helm charts and keeps the original
+#   build entry points available through Makefile.org.
+#
+# Dockerfile naming:
+#   OCM builds multiple component images from one repository, so upstream uses
+#   build/Dockerfile.<component> (for example Dockerfile.addon). This naming
+#   convention and all five component names already existed in the original
+#   Makefile.org build-image declarations; the wrapper reuses them unchanged.
 
 CONTAINER_ENGINE ?= docker
 PLATFORM ?= linux/amd64
@@ -37,21 +50,33 @@ IMAGES := \
 help: ## Show the supported local and SPS pipeline targets.
 	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target> [VARIABLE=value]\n\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-pre-build: ## Validate prerequisites, backups, Dockerfiles, and Helm charts.
+# NEW wrapper target (not in upstream Makefile.org).
+# Purpose: fail early before an SPS build if required tools/backups are missing,
+# a runtime Dockerfile is not UBI9/non-root, or an existing upstream chart fails
+# Helm lint. It does not compile binaries or build images.
+pre-build: ## [wrapper] Validate prerequisites, UBI9 Dockerfiles, and existing Helm charts.
 	@command -v $(CONTAINER_ENGINE) >/dev/null || { echo "Missing container engine: $(CONTAINER_ENGINE)"; exit 1; }
 	@command -v helm >/dev/null || { echo "Missing required command: helm"; exit 1; }
 	@test -f Makefile.org || { echo "Makefile.org is required"; exit 1; }
 	@bash hack/verify-ubi9-dockerfiles.sh
 	@$(MAKE) --no-print-directory helm-lint
 
-docker-build: ## Build every OCM runtime image for linux/amd64.
+# NEW aggregate wrapper target (not in upstream Makefile.org).
+# Purpose: give SPS one stable command that builds every upstream OCM component
+# image for the required platform. Upstream already built the same components
+# from these same Dockerfile.<component> paths through build-image declarations.
+docker-build: ## [wrapper] Build all existing OCM component images for linux/amd64.
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.registration -t $(REGISTRATION_IMAGE) .
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.work -t $(WORK_IMAGE) .
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.placement -t $(PLACEMENT_IMAGE) .
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.registration-operator -t $(OPERATOR_IMAGE) .
 	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.addon -t $(ADDON_IMAGE) .
 
-docker-test: ## Verify UBI9, amd64, non-root execution, binaries, and help startup.
+# NEW wrapper validation target (not in upstream Makefile.org).
+# Purpose: test the images produced by docker-build. It verifies UBI9,
+# linux/amd64, UID 10001, executable binaries, and safe --help startup; it is
+# packaging/runtime validation and does not replace upstream Go unit tests.
+docker-test: ## [wrapper] Validate UBI9, amd64, non-root, and binary startup.
 	IMAGE_REGISTRY=$(IMAGE_REGISTRY) IMAGE_TAG=$(IMAGE_TAG) PLATFORM=$(PLATFORM) \
 		CONTAINER_ENGINE=$(CONTAINER_ENGINE) bash hack/verify-ubi9-images.sh
 
@@ -73,7 +98,11 @@ helm-template: ## Render both charts with the local UBI9 image values.
 		--values deploy/local/klusterlet-ubi9-values.yaml \
 		--set-file bootstrapHubKubeConfig=deploy/local/bootstrap-placeholder.kubeconfig >/dev/null
 
-helm-package: helm-lint ## Package both charts as version 0.3.0 for OCI publication.
+# NEW wrapper packaging target (not in upstream Makefile.org).
+# Purpose: package the two existing upstream charts at the Sovereign Core
+# required version. It creates local .tgz artifacts only; OCI publication,
+# signing, and mirroring remain responsibilities of the IBM pipeline.
+helm-package: helm-lint ## [wrapper] Package existing charts as version 0.3.0.
 	@mkdir -p $(HELM_OUTPUT_DIR)
 	helm package deploy/cluster-manager/chart/cluster-manager \
 		--version $(HELM_CHART_VERSION) --app-version $(IMAGE_TAG) \
@@ -85,7 +114,11 @@ helm-package: helm-lint ## Package both charts as version 0.3.0 for OCI publicat
 local-load-images: ## Load all locally built images into the isolated Minikube profile.
 	@for image in $(IMAGES); do minikube image load --profile $(MINIKUBE_PROFILE) "$$image"; done
 
-deploy: ## Install/upgrade the hub operator and ClusterManager application with Helm.
+# NEW wrapper deployment target (not in upstream Makefile.org).
+# Purpose: install/upgrade the existing Cluster Manager Helm chart with the
+# local UBI9 image overrides. This deploys the hub operator/ClusterManager only;
+# deploy-managed is the separate Klusterlet managed-cluster installation.
+deploy: ## [wrapper] Deploy the hub through the existing Cluster Manager chart.
 	helm upgrade --install cluster-manager deploy/cluster-manager/chart/cluster-manager \
 		--kube-context $(KUBE_CONTEXT) \
 		--namespace $(HELM_NAMESPACE) --create-namespace \

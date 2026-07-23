@@ -3,6 +3,25 @@
 The Sovereign Core SPS pipeline must call the top-level wrapper Makefile rather
 than reproducing build commands in pipeline YAML.
 
+## Wrapper target origin and purpose
+
+These targets are additions in the top-level wrapper; they are not original
+targets copied from `Makefile.org`.
+
+| Target | Why the wrapper adds it | Existing project content reused |
+| --- | --- | --- |
+| `pre-build` | Fail early on missing tools/backups, invalid UBI9 runtime settings, or Helm lint errors. | Five upstream Dockerfiles and two upstream Helm charts. |
+| `docker-build` | Give SPS one aggregate command to build every required OCM image for `linux/amd64`. | The same five component Dockerfile paths declared by the original upstream Makefile. |
+| `docker-test` | Verify the packaged images are UBI9, AMD64, non-root, executable, and able to start safely. | The binaries produced by the existing upstream build logic. |
+| `helm-package` | Package both charts at the required `0.3.0` version before pipeline-managed OCI publication. | Existing Cluster Manager and Klusterlet charts. |
+| `deploy` | Provide a standard Helm command for installing/upgrading the hub with UBI9 image overrides. | Existing Cluster Manager chart; `deploy-managed` separately installs Klusterlet. |
+
+OCM produces several images from one repository. The upstream project therefore
+uses the existing `build/Dockerfile.<component>` convention, such as
+`Dockerfile.addon`, `Dockerfile.work`, and `Dockerfile.registration`. The
+original `Makefile.org` already declares these five component-specific paths.
+The wrapper does not introduce or rename that convention.
+
 ## Credential-free build sequence
 
 ```bash
