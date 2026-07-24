@@ -492,6 +492,31 @@ rm -f "$HUB_CA_FILE"
 unset BOOTSTRAP_TOKEN
 ```
 
+## Rollback — only when removal is authorized
+
+Remove the managed side before the hub:
+
+```bash
+helm --kube-context "$MANAGED_CONTEXT" \
+  --namespace "$OCM_NAMESPACE" \
+  uninstall klusterlet
+
+kubectl --context "$HUB_CONTEXT" delete managedcluster \
+  "$MANAGED_CLUSTER_NAME" \
+  --ignore-not-found
+
+helm --kube-context "$HUB_CONTEXT" \
+  --namespace "$OCM_NAMESPACE" \
+  uninstall cluster-manager
+
+rm -f "$BOOTSTRAP_KUBECONFIG"
+rm -f "$HUB_CA_FILE"
+unset BOOTSTRAP_TOKEN
+```
+
+Do not delete OCM CRDs unless all OCM custom resources have been removed and
+the platform owner confirms that no other installation uses them.
+
 ## Stop points
 
 Do not continue if any of these occur:
