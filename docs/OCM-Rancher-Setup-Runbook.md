@@ -108,6 +108,30 @@ Install the existing Cluster Manager chart on the selected hub cluster.
 **Why:** Helm installs the OCM CRDs, the operator, and a `ClusterManager`
 custom resource. The operator then creates the hub application components.
 
+Run this from the repository root after the image variables in the CLI guide
+have been set:
+
+```bash
+helm upgrade --install cluster-manager \
+  deploy/cluster-manager/chart/cluster-manager \
+  --kube-context "$HUB_CONTEXT" \
+  --namespace "$OCM_NAMESPACE" \
+  --create-namespace \
+  --set replicaCount=1 \
+  --set createBootstrapSA=true \
+  --set images.imagePullPolicy=IfNotPresent \
+  --set-string images.overrides.registrationImage="$REGISTRATION_IMAGE" \
+  --set-string images.overrides.workImage="$WORK_IMAGE" \
+  --set-string images.overrides.placementImage="$PLACEMENT_IMAGE" \
+  --set-string images.overrides.operatorImage="$OPERATOR_IMAGE" \
+  --set-string images.overrides.addOnManagerImage="$ADDON_IMAGE" \
+  --wait \
+  --timeout 10m
+```
+
+This creates the Helm release named `cluster-manager` in the
+`open-cluster-management` namespace on `$HUB_CONTEXT`.
+
 ### Step 7 — Create temporary bootstrap access
 
 Create a short-lived bootstrap kubeconfig that points to the hub Kubernetes
@@ -122,6 +146,30 @@ Install the existing Klusterlet chart on the managed cluster.
 
 **Why:** The Klusterlet operator creates the Registration and Work agents that
 connect the managed cluster to the hub.
+
+Run this after `$BOOTSTRAP_KUBECONFIG` has been created and successfully
+tested:
+
+```bash
+helm upgrade --install klusterlet \
+  deploy/klusterlet/chart/klusterlet \
+  --kube-context "$MANAGED_CONTEXT" \
+  --namespace "$OCM_NAMESPACE" \
+  --create-namespace \
+  --set klusterlet.name=klusterlet \
+  --set-string klusterlet.clusterName="$MANAGED_CLUSTER_NAME" \
+  --set images.imagePullPolicy=IfNotPresent \
+  --set-string images.overrides.registrationImage="$REGISTRATION_IMAGE" \
+  --set-string images.overrides.workImage="$WORK_IMAGE" \
+  --set-string images.overrides.operatorImage="$OPERATOR_IMAGE" \
+  --set-file bootstrapHubKubeConfig="$BOOTSTRAP_KUBECONFIG" \
+  --wait \
+  --timeout 10m
+```
+
+This creates the Helm release named `klusterlet` on `$MANAGED_CONTEXT`. The
+Klusterlet operator then creates the managed-cluster Registration and Work
+agent workloads.
 
 ### Step 9 — Accept the managed cluster
 

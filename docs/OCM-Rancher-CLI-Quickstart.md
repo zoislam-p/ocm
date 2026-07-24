@@ -3,6 +3,16 @@
 This is the short, command-focused companion to
 `docs/OCM-Rancher-Setup-Runbook.md`.
 
+The two actual installation commands are:
+
+- **Step 7:** `helm upgrade --install cluster-manager` installs the OCM hub.
+- **Step 9:** `helm upgrade --install klusterlet` installs the managed-cluster
+  operator and agents.
+
+Do not use `make deploy` for Rancher. That wrapper currently selects the
+Minikube-only values file. Use the explicit Rancher Helm commands in this
+guide.
+
 ## How to use this document
 
 This is the primary execution checklist for any Rancher installation.
