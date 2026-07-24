@@ -1,9 +1,9 @@
-# OCM on Rancher/RKE2 — Meeting and Installation Runbook
+# OCM on Rancher/RKE2 — Installation and Validation Runbook
 
 ## How to use this document
 
-This is the detailed reference, not the primary meeting checklist. During the
-setup, follow `docs/OCM-Rancher-CLI-Quickstart.md`. Return here when a step
+This is the detailed reference, not the primary execution checklist. During
+installation, follow `docs/OCM-Rancher-CLI-Quickstart.md`. Return here when a step
 needs more explanation, a command fails, or rollback and evidence guidance is
 needed.
 
@@ -56,7 +56,7 @@ feature/ubi9-ocm-migration
 
 ## First-time Rancher setup — simplified flow
 
-Use this section as the meeting checklist. The later sections contain the full
+Use this section as the quick setup checklist. The later sections contain the full
 commands and troubleshooting details.
 
 ### Step 1 — Choose the Rancher clusters
@@ -143,7 +143,7 @@ Kubernetes resource and receive status from the managed cluster.
 ### Files already changed on the feature branch
 
 These changes are already complete. They should be reviewed, not edited during
-the Rancher meeting:
+the Rancher installation:
 
 | Files | Purpose |
 |---|---|
@@ -204,7 +204,7 @@ deploy/rancher/klusterlet-ubi9-values.yaml
 Passwords, registry tokens, bootstrap tokens, and kubeconfigs must never be
 committed. Store them as Kubernetes secrets or inject them during deployment.
 
-## 2. Decisions to confirm at the start of the meeting
+## 2. Decisions to confirm before installation
 
 Record these before running commands:
 
@@ -796,9 +796,9 @@ Also record:
 - screenshots of Rancher workload health; and
 - blockers, policy exceptions, or networking changes.
 
-## 19. Meeting completion criteria
+## 19. Installation completion criteria
 
-The meeting is successful when:
+The installation and validation are successful when:
 
 1. the topology and target clusters are agreed;
 2. both kubeconfig contexts and cluster-admin access work;

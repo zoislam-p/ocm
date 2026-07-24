@@ -9,7 +9,7 @@ remain outside the local environment.
 
 For the first Rancher setup, use the documents in this order:
 
-1. **Follow during the meeting:** `docs/OCM-Rancher-CLI-Quickstart.md`.
+1. **Follow during installation:** `docs/OCM-Rancher-CLI-Quickstart.md`.
 
    This is the command-by-command checklist. Start at Step 1 and do not skip a
    failed check.

@@ -5,7 +5,7 @@ This is the short, command-focused companion to
 
 ## How to use this document
 
-This is the document to keep open during the meeting.
+This is the primary execution checklist for any Rancher installation.
 
 1. Start at Step 1.
 2. Run one command block at a time.
