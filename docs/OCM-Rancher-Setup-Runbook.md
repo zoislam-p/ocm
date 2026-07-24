@@ -497,12 +497,15 @@ kubectl config --kubeconfig "$BOOTSTRAP_KUBECONFIG" set-context ocm-bootstrap \
 kubectl config --kubeconfig "$BOOTSTRAP_KUBECONFIG" use-context ocm-bootstrap
 ```
 
-Protect and test it:
+Protect and test the API endpoint and bootstrap permission:
 
 ```bash
 chmod 600 "$BOOTSTRAP_KUBECONFIG"
-kubectl --kubeconfig "$BOOTSTRAP_KUBECONFIG" get --raw=/version
+kubectl --kubeconfig "$BOOTSTRAP_KUBECONFIG" auth can-i \
+  create certificatesigningrequests.certificates.k8s.io
 ```
+
+Expected result: `yes`.
 
 The token is deliberately short-lived. Do not commit the kubeconfig, token, CA
 bundle, or registry credentials.
