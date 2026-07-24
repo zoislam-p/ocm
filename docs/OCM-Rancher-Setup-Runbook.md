@@ -1,5 +1,12 @@
 # OCM on Rancher/RKE2 — Meeting and Installation Runbook
 
+## How to use this document
+
+This is the detailed reference, not the primary meeting checklist. During the
+setup, follow `docs/OCM-Rancher-CLI-Quickstart.md`. Return here when a step
+needs more explanation, a command fails, or rollback and evidence guidance is
+needed.
+
 ## 1. Objective
 
 Install the UBI9-based Open Cluster Management (OCM) images from this

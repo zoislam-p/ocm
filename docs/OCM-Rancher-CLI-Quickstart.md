@@ -3,6 +3,20 @@
 This is the short, command-focused companion to
 `docs/OCM-Rancher-Setup-Runbook.md`.
 
+## How to use this document
+
+This is the document to keep open during the meeting.
+
+1. Start at Step 1.
+2. Run one command block at a time.
+3. Read the expected result immediately below it.
+4. Stop if the result is different.
+5. Use the full runbook only for explanation or troubleshooting.
+
+Text inside `<angle-brackets>` is a placeholder and must be replaced before
+the command is run. All other commands can be copied after the variables are
+set.
+
 ## Do any repository files need to be changed?
 
 No existing source file needs to be modified for the first Rancher test.

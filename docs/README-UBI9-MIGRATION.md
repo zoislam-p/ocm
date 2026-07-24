@@ -5,6 +5,27 @@ explains what changed, why each change exists, where the files are located,
 how the implementation was tested, and which Sovereign Core release gates
 remain outside the local environment.
 
+## Manager start here
+
+For the first Rancher setup, use the documents in this order:
+
+1. **Follow during the meeting:** `docs/OCM-Rancher-CLI-Quickstart.md`.
+
+   This is the command-by-command checklist. Start at Step 1 and do not skip a
+   failed check.
+2. **Use only when explanation or troubleshooting is needed:**
+   `docs/OCM-Rancher-Setup-Runbook.md`.
+
+   This explains architecture, prerequisites, expected results, Rancher UI
+   checks, troubleshooting, rollback, and evidence collection.
+3. **Review project results and management status:**
+   `docs/OCM-UBI9-Migration-Manager-Report.docx`.
+
+No existing source file needs to be edited during the first Rancher test.
+Environment-specific values are supplied through shell variables and Helm
+options, while credentials and temporary kubeconfigs remain outside the
+repository.
+
 ## Current status
 
 Local engineering validation is complete:
