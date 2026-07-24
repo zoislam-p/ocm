@@ -763,7 +763,7 @@ unset BOOTSTRAP_TOKEN
 
 ## 18. Evidence to save
 
-Capture these for the worklog and manager report:
+Capture these for the manager report and project evidence:
 
 ```bash
 helm --kube-context "$HUB_CONTEXT" list -A

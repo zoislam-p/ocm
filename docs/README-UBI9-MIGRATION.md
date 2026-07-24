@@ -180,7 +180,6 @@ ConfigMap value=OCM ManifestWork delivery succeeded
 
 | File | Audience and purpose |
 | --- | --- |
-| `docs/OCM-UBI9-Migration-Worklog.docx` | Detailed engineering worklog, decisions, evidence, and daily updates. |
 | `docs/OCM-UBI9-Migration-Manager-Report.docx` | Manager-facing implementation and validation report. |
 | `docs/OCM-UBI9-Manager-Walkthrough-Speaker-Guide.docx` | Section-by-section speaking guide and likely questions. |
 | `docs/README-UBI9-MIGRATION.md` | Central technical map of all migration changes. |
