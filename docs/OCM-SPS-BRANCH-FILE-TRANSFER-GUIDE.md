@@ -108,13 +108,17 @@ Confirm the fetched reference:
 git rev-parse ubi9-reference/feature/ubi9-ocm-migration
 ```
 
-Expected reference commit for this version of the guide:
+Reviewed build-content baseline:
 
 ```text
 17e1d022476801b8381deca6d8e1f33315888750
 ```
 
-If the reference branch has advanced, record the newer commit and review its diff before copying.
+The live reference branch can be newer because documentation may be added after this baseline. Record the fetched branch SHA and review commits after the baseline before copying:
+
+```bash
+git log --oneline 17e1d022476801b8381deca6d8e1f33315888750..ubi9-reference/feature/ubi9-ocm-migration
+```
 
 ### 3. Copy the required files
 
