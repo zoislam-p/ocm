@@ -1,136 +1,158 @@
-SHELL :=/bin/bash
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
 
-all: build
-.PHONY: all
+# Sovereign Core / SPS wrapper Makefile.
+# Upstream targets remain unchanged in Makefile.org and can be called through
+# the upstream-* targets below.
+#
+# Target origin:
+#   pre-build, docker-build, docker-test, helm-package, and deploy are NEW
+#   wrapper targets added for the Sovereign Core/SPS workflow. They are not
+#   copied from the original upstream Makefile. Each target either validates
+#   or invokes existing upstream Dockerfiles/Helm charts and keeps the original
+#   build entry points available through Makefile.org.
+#
+# Dockerfile naming:
+#   OCM builds multiple component images from one repository, so upstream uses
+#   build/Dockerfile.<component> (for example Dockerfile.addon). This naming
+#   convention and all five component names already existed in the original
+#   Makefile.org build-image declarations; the wrapper reuses them unchanged.
 
-# Include the library makefile
-include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
-	golang.mk \
-	targets/openshift/deps.mk \
-	targets/openshift/images.mk \
-	targets/openshift/yaml-patch.mk\
-	lib/tmp.mk\
-)
+CONTAINER_ENGINE ?= docker
+PLATFORM ?= linux/amd64
+IMAGE_REGISTRY ?= ocm-ubi9
+IMAGE_TAG ?= phase1
 
-# Include the integration/e2e setup makefile.
-include ./test/integration-test.mk
-include ./test/e2e-test.mk
-include ./test/olm-test.mk
-include ./test/kind-images.mk
-
-OPERATOR_SDK?=$(PERMANENT_TMP_GOPATH)/bin/operator-sdk
-OPERATOR_SDK_VERSION?=v1.32.0
-operatorsdk_gen_dir:=$(dir $(OPERATOR_SDK))
-
-HELM?=$(PERMANENT_TMP_GOPATH)/bin/helm
-HELM_VERSION?=v3.14.0
-helm_gen_dir:=$(dir $(HELM))
-
-# RELEASED_CSV_VERSION indicates the last released operator version.
-# can find the released operator version from
-# https://github.com/k8s-operatorhub/community-operators/tree/main/operators/cluster-manager
-# https://github.com/k8s-operatorhub/community-operators/tree/main/operators/klusterlet
-RELEASED_CSV_VERSION?=0.14.0
-export RELEASED_CSV_VERSION
-
-# CSV_VERSION is used to generate latest CSV manifests
-CSV_VERSION?=9.9.9
-export CSV_VERSION
-
-OPERATOR_SDK_ARCHOS:=linux_amd64
-HELM_ARCHOS:=linux-amd64
-ifeq ($(GOHOSTOS),darwin)
-	ifeq ($(GOHOSTARCH),amd64)
-		OPERATOR_SDK_ARCHOS:=darwin_amd64
-		HELM_ARCHOS:=darwin-amd64
-	endif
-	ifeq ($(GOHOSTARCH),arm64)
-		OPERATOR_SDK_ARCHOS:=darwin_arm64
-		HELM_ARCHOS:=darwin-arm64
-	endif
-endif
-
-# Add packages to do unit test
-GO_TEST_PACKAGES :=./pkg/...
-GO_TEST_FLAGS := -race -coverprofile=coverage.out
-
-IMAGE_REGISTRY?=quay.io/open-cluster-management
-IMAGE_TAG?=latest
-
-OPERATOR_IMAGE_NAME ?= $(IMAGE_REGISTRY)/registration-operator:$(IMAGE_TAG)
-# WORK_IMAGE can be set in the env to override calculated value
-WORK_IMAGE ?= $(IMAGE_REGISTRY)/work:$(IMAGE_TAG)
-# REGISTRATION_IMAGE can be set in the env to override calculated value
 REGISTRATION_IMAGE ?= $(IMAGE_REGISTRY)/registration:$(IMAGE_TAG)
-# PLACEMENT_IMAGE can be set in the env to override calculated value
+WORK_IMAGE ?= $(IMAGE_REGISTRY)/work:$(IMAGE_TAG)
 PLACEMENT_IMAGE ?= $(IMAGE_REGISTRY)/placement:$(IMAGE_TAG)
-# ADDON_MANAGER_IMAGE can be set in the env to override calculated value
-ADDON_MANAGER_IMAGE ?= $(IMAGE_REGISTRY)/addon-manager:$(IMAGE_TAG)
+OPERATOR_IMAGE ?= $(IMAGE_REGISTRY)/registration-operator:$(IMAGE_TAG)
+ADDON_IMAGE ?= $(IMAGE_REGISTRY)/addon:$(IMAGE_TAG)
 
-$(call build-image,registration,$(REGISTRATION_IMAGE),./build/Dockerfile.registration,.)
-$(call build-image,work,$(WORK_IMAGE),./build/Dockerfile.work,.)
-$(call build-image,placement,$(PLACEMENT_IMAGE),./build/Dockerfile.placement,.)
-$(call build-image,registration-operator,$(OPERATOR_IMAGE_NAME),./build/Dockerfile.registration-operator,.)
-$(call build-image,addon-manager,$(ADDON_MANAGER_IMAGE),./build/Dockerfile.addon,.)
+KUBE_CONTEXT ?= ocm-ubi9
+MINIKUBE_PROFILE ?= ocm-ubi9
+HELM_NAMESPACE ?= open-cluster-management
+HELM_CHART_VERSION ?= 0.3.0
+HELM_OUTPUT_DIR ?= dist/charts
+BOOTSTRAP_HUB_KUBECONFIG ?=
 
-copy-crd: ensure-yaml-patch
-	bash -x hack/copy-crds.sh $(YAML_PATCH)
+IMAGES := \
+	$(REGISTRATION_IMAGE) \
+	$(WORK_IMAGE) \
+	$(PLACEMENT_IMAGE) \
+	$(OPERATOR_IMAGE) \
+	$(ADDON_IMAGE)
 
-update: copy-crd update-csv
+.PHONY: help pre-build docker-build docker-test docker-push pipeline-local deploy deploy-managed \
+	helm-lint helm-template helm-package local-load-images local-status \
+	build test-unit verify update lint upstream-build upstream-test-unit upstream-verify
 
-test-unit: envtest-setup
+help: ## Show the supported local and SPS pipeline targets.
+	@awk 'BEGIN {FS = ":.*## "; printf "Usage: make <target> [VARIABLE=value]\n\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-update-csv: ensure-operator-sdk ensure-helm
-	bash -x hack/update-csv.sh
+# NEW wrapper target (not in upstream Makefile.org).
+# Purpose: fail early before an SPS build if required tools/backups are missing,
+# a runtime Dockerfile is not UBI9/non-root, or an existing upstream chart fails
+# Helm lint. It does not compile binaries or build images.
+pre-build: ## [wrapper] Validate prerequisites, UBI9 Dockerfiles, and existing Helm charts.
+	@command -v $(CONTAINER_ENGINE) >/dev/null || { echo "Missing container engine: $(CONTAINER_ENGINE)"; exit 1; }
+	@command -v helm >/dev/null || { echo "Missing required command: helm"; exit 1; }
+	@test -f Makefile.org || { echo "Makefile.org is required"; exit 1; }
+	@bash hack/verify-ubi9-dockerfiles.sh
+	@$(MAKE) --no-print-directory helm-lint
 
-verify-csv:
-	bash hack/verify-csv.sh
+# NEW aggregate wrapper target (not in upstream Makefile.org).
+# Purpose: give SPS one stable command that builds every upstream OCM component
+# image for the required platform. Upstream already built the same components
+# from these same Dockerfile.<component> paths through build-image declarations.
+docker-build: ## [wrapper] Build all existing OCM component images for linux/amd64.
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.registration -t $(REGISTRATION_IMAGE) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.work -t $(WORK_IMAGE) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.placement -t $(PLACEMENT_IMAGE) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.registration-operator -t $(OPERATOR_IMAGE) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f build/Dockerfile.addon -t $(ADDON_IMAGE) .
 
-verify-crds: ensure-yaml-patch
-	bash -x hack/verify-crds.sh $(YAML_PATCH)
+# NEW wrapper validation target (not in upstream Makefile.org).
+# Purpose: test the images produced by docker-build. It verifies UBI9,
+# linux/amd64, UID 10001, executable binaries, and safe --help startup; it is
+# packaging/runtime validation and does not replace upstream Go unit tests.
+docker-test: ## [wrapper] Validate UBI9, amd64, non-root, and binary startup.
+	IMAGE_REGISTRY=$(IMAGE_REGISTRY) IMAGE_TAG=$(IMAGE_TAG) PLATFORM=$(PLATFORM) \
+		CONTAINER_ENGINE=$(CONTAINER_ENGINE) bash hack/verify-ubi9-images.sh
 
-.PHONY: lint
-lint:
-	@bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/open-cluster-management-io/sdk-go/main/ci/lint/run-lint.sh | bash'
+docker-push: ## Push all images; set IMAGE_REGISTRY to an authenticated registry.
+	@for image in $(IMAGES); do $(CONTAINER_ENGINE) push "$$image"; done
 
-install-golang-gci:
-	go install github.com/daixiang0/gci@v0.13.7
+pipeline-local: pre-build docker-build docker-test helm-package ## Run the credential-free local CI sequence.
 
-fmt-imports: install-golang-gci
-	gci write --skip-generated -s standard -s default -s "prefix(open-cluster-management.io)" -s localmodule cmd pkg test dependencymagnet
+helm-lint: ## Lint both upstream OCM Helm charts.
+	helm lint deploy/cluster-manager/chart/cluster-manager
+	helm lint deploy/klusterlet/chart/klusterlet
 
-verify-fmt-imports: install-golang-gci
-	@output=$$(gci diff --skip-generated -s standard -s default -s "prefix(open-cluster-management.io)" -s localmodule cmd pkg test dependencymagnet); \
-	if [ -n "$$output" ]; then \
-	    echo "Diff output is not empty: $$output"; \
-	    echo "Please run 'make fmt-imports' to format the golang files imports automatically."; \
-	    exit 1; \
-	else \
-	    echo "Diff output is empty"; \
-	fi
+helm-template: ## Render both charts with the local UBI9 image values.
+	helm template cluster-manager deploy/cluster-manager/chart/cluster-manager \
+		--namespace $(HELM_NAMESPACE) \
+		--values deploy/local/cluster-manager-ubi9-values.yaml >/dev/null
+	helm template klusterlet deploy/klusterlet/chart/klusterlet \
+		--namespace $(HELM_NAMESPACE) \
+		--values deploy/local/klusterlet-ubi9-values.yaml \
+		--set-file bootstrapHubKubeConfig=deploy/local/bootstrap-placeholder.kubeconfig >/dev/null
 
-verify: verify-fmt-imports verify-crds lint
+# NEW wrapper packaging target (not in upstream Makefile.org).
+# Purpose: package the two existing upstream charts at the Sovereign Core
+# required version. It creates local .tgz artifacts only; OCI publication,
+# signing, and mirroring remain responsibilities of the IBM pipeline.
+helm-package: helm-lint ## [wrapper] Package existing charts as version 0.3.0.
+	@mkdir -p $(HELM_OUTPUT_DIR)
+	helm package deploy/cluster-manager/chart/cluster-manager \
+		--version $(HELM_CHART_VERSION) --app-version $(IMAGE_TAG) \
+		--destination $(HELM_OUTPUT_DIR)
+	helm package deploy/klusterlet/chart/klusterlet \
+		--version $(HELM_CHART_VERSION) --app-version $(IMAGE_TAG) \
+		--destination $(HELM_OUTPUT_DIR)
 
-ensure-operator-sdk:
-ifeq "" "$(wildcard $(OPERATOR_SDK))"
-	$(info Installing operator-sdk into '$(OPERATOR_SDK)')
-	mkdir -p '$(operatorsdk_gen_dir)'
-	curl -s -f -L https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$(OPERATOR_SDK_ARCHOS) -o '$(OPERATOR_SDK)'
-	chmod +x '$(OPERATOR_SDK)';
-else
-	$(info Using existing operator-sdk from "$(OPERATOR_SDK)")
-endif
+local-load-images: ## Load all locally built images into the isolated Minikube profile.
+	@for image in $(IMAGES); do minikube image load --profile $(MINIKUBE_PROFILE) "$$image"; done
 
-ensure-helm:
-ifeq "" "$(wildcard $(HELM))"
-	$(info Installing helm into '$(HELM)')
-	mkdir -p '$(helm_gen_dir)'
-	curl -s -f -L https://get.helm.sh/helm-$(HELM_VERSION)-$(HELM_ARCHOS).tar.gz -o '$(helm_gen_dir)$(HELM_VERSION)-$(HELM_ARCHOS).tar.gz'
-	tar -zvxf '$(helm_gen_dir)/$(HELM_VERSION)-$(HELM_ARCHOS).tar.gz' -C $(helm_gen_dir)
-	mv $(helm_gen_dir)/$(HELM_ARCHOS)/helm $(HELM)
-	rm -rf $(helm_gen_dir)/$(HELM_ARCHOS)
-	chmod +x '$(HELM)';
-else
-	$(info Using existing helm from "$(HELM)")
-endif
+# NEW wrapper deployment target (not in upstream Makefile.org).
+# Purpose: install/upgrade the existing Cluster Manager Helm chart with the
+# local UBI9 image overrides. This deploys the hub operator/ClusterManager only;
+# deploy-managed is the separate Klusterlet managed-cluster installation.
+deploy: ## [wrapper] Deploy the hub through the existing Cluster Manager chart.
+	helm upgrade --install cluster-manager deploy/cluster-manager/chart/cluster-manager \
+		--kube-context $(KUBE_CONTEXT) \
+		--namespace $(HELM_NAMESPACE) --create-namespace \
+		--values deploy/local/cluster-manager-ubi9-values.yaml
 
+deploy-managed: ## Install/upgrade Klusterlet; requires BOOTSTRAP_HUB_KUBECONFIG.
+	@test -n "$(BOOTSTRAP_HUB_KUBECONFIG)" || { echo "Set BOOTSTRAP_HUB_KUBECONFIG to a short-lived bootstrap kubeconfig"; exit 1; }
+	helm upgrade --install klusterlet deploy/klusterlet/chart/klusterlet \
+		--kube-context $(KUBE_CONTEXT) \
+		--namespace $(HELM_NAMESPACE) \
+		--values deploy/local/klusterlet-ubi9-values.yaml \
+		--set-file bootstrapHubKubeConfig=$(BOOTSTRAP_HUB_KUBECONFIG)
+
+local-status: ## Show the local Helm releases, workloads, and OCM resources.
+	helm --kube-context $(KUBE_CONTEXT) list --all-namespaces
+	kubectl --context $(KUBE_CONTEXT) get deployments,pods --all-namespaces
+	kubectl --context $(KUBE_CONTEXT) get clustermanager,klusterlet,managedcluster
+
+upstream-build: ## Delegate the original build target to Makefile.org.
+	$(MAKE) -f Makefile.org build
+
+upstream-test-unit: ## Delegate the original unit-test target to Makefile.org.
+	$(MAKE) -f Makefile.org test-unit
+
+upstream-verify: ## Delegate the original verification target to Makefile.org.
+	$(MAKE) -f Makefile.org verify
+
+# Compatibility entry points used by upstream development and the Dockerfile
+# builder stages. The original implementation remains in Makefile.org.
+build: upstream-build
+
+test-unit: upstream-test-unit
+
+verify: upstream-verify
+
+update lint:
+	$(MAKE) -f Makefile.org $@

@@ -1,0 +1,13 @@
+# Local Minikube validation values for the UBI9 image build.
+images:
+  overrides:
+    registrationImage: ocm-ubi9/registration:phase1
+    workImage: ocm-ubi9/work:phase1
+    operatorImage: ocm-ubi9/registration-operator:phase1
+  imagePullPolicy: Never
+
+klusterlet:
+  create: true
+  mode: Singleton
+  name: klusterlet
+  clusterName: ocm-ubi9-local

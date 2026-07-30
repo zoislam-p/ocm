@@ -1,16 +1,16 @@
-FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 ARG OS=linux
 ARG ARCH=amd64
 WORKDIR /go/src/open-cluster-management.io/ocm
 COPY . .
-ENV GO_PACKAGE=open-cluster-management.io/ocm
+ENV GO_PACKAGE open-cluster-management.io/ocm
 
 RUN GOOS=${OS} \
     GOARCH=${ARCH} \
     GO_BUILD_PACKAGES=./cmd/placement \
     make build --warn-undefined-variables
 
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi9/ubi-micro:latest
 ENV USER_UID=10001
 
 COPY --from=builder /go/src/open-cluster-management.io/ocm/placement /

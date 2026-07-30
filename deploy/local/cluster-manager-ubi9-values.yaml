@@ -1,0 +1,17 @@
+# Local Minikube validation values for the UBI9 image build.
+replicaCount: 1
+
+images:
+  overrides:
+    registrationImage: ocm-ubi9/registration:phase1
+    workImage: ocm-ubi9/work:phase1
+    placementImage: ocm-ubi9/placement:phase1
+    addOnManagerImage: ocm-ubi9/addon:phase1
+    operatorImage: ocm-ubi9/registration-operator:phase1
+  imagePullPolicy: Never
+
+clusterManager:
+  create: true
+
+# Local-only bootstrap identity used to register the same-cluster Klusterlet.
+createBootstrapSA: true
